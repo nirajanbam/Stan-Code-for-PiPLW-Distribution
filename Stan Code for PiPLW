@@ -1,0 +1,170 @@
+##Stan Code for PIPLW###
+model1<-"functions {
+  real my_quantile_rng(real rho, real omega) {
+    real u = uniform_rng(0, 1);
+    real pi_val = 3.141592653589793;  // Define pi manually
+    real k = log(1 + u * (pi_val - 1)) / log(pi_val);  // Fixed 'pi'
+    real t = (1 - k) / (1 + k);
+    return pow(-(1 / rho) * log(t), 1 / omega);
+  }
+
+  real my_model_lpdf(real x, real rho, real omega) {
+    real pi_val = 3.141592653589793;  // Define pi manually
+    real z = exp(-rho * pow(x, omega));
+    real t = 2 * rho * omega * log(pi_val) / (pi_val - 1);
+    real gx = pow(x, omega - 1);
+    real tmp = (1 - z) / (1 + z);
+    return log(t * gx * z * pow(1 + z, -2) * pow(pi_val, tmp));  // Use 'pi_val' instead of 'pi'
+  }
+}
+
+data {
+  int<lower=1> N;          // Number of observations
+  real<lower=0> x[N];      // Observations
+}
+
+parameters {
+  real<lower=0> rho;     // Shape parameter
+  real<lower=0> omega;      // Scale parameter
+}
+
+model {
+  // Priors
+  rho ~ gamma(0.1, 1);
+  omega ~ gamma(0.1, 1);
+  
+  // Likelihood
+  for (n in 1:N) {
+    target += my_model_lpdf(x[n] | rho, omega);  
+  }
+}
+
+generated quantities {
+  real log_lik[N];  // Store log-likelihood for each observation
+  
+
+  real lprior; // joint log prior
+
+
+  for (n in 1:N) {
+    log_lik[n] = my_model_lpdf(x[n] | rho, omega);  // Log-likelihood
+    
+   
+    lprior=gamma_lpdf(rho|0.01, 0.1)+gamma_lpdf(omega|0.1, 1);
+  }
+}
+
+"
+##Stan Code for PIPLW for Sensitivity Analysis###
+model2<-"functions {
+  real my_quantile_rng(real rho, real omega) {
+    real u = uniform_rng(0, 1);
+    real pi_val = 3.141592653589793;  // Define pi manually
+    real k = log(1 + u * (pi_val - 1)) / log(pi_val);  // Fixed 'pi'
+    real t = (1 - k) / (1 + k);
+    return pow(-(1 / rho) * log(t), 1 / omega);
+  }
+
+  real my_model_lpdf(real x, real rho, real omega) {
+    real pi_val = 3.141592653589793;  // Define pi manually
+    real z = exp(-rho * pow(x, omega));
+    real t = 2 * rho * omega * log(pi_val) / (pi_val - 1);
+    real gx = pow(x, omega - 1);
+    real tmp = (1 - z) / (1 + z);
+    return log(t * gx * z * pow(1 + z, -2) * pow(pi_val, tmp));  // Use 'pi_val' instead of 'pi'
+  }
+}
+
+data {
+  int<lower=1> N;          // Number of observations
+  real<lower=0> x[N];      // Observations
+}
+
+parameters {
+  real<lower=0> rho;     // Shape parameter
+  real<lower=0> omega;      // Scale parameter
+}
+
+model {
+  // Priors
+  rho ~ Gamma(0.1,1);
+  omega ~ Gamma(0.1, 1);
+  
+  // Likelihood
+  for (n in 1:N) {
+    target += my_model_lpdf(x[n] | rho, omega);  
+  }
+}
+
+generated quantities {
+  real log_lik[N];  // Store log-likelihood for each observation
+  real xrep[N];
+  for (n in 1:N) {
+    log_lik[n] = my_model_lpdf(x[n] | rho, omega);  // Log-likelihood
+    
+   xrep[n] = my_quantile_rng(rho, omega); 
+  }
+}
+
+"
+
+#    Dataset###
+
+x <- c(0.39, 0.85, 1.08, 1.25, 1.47, 1.57, 1.61, 1.61, 1.69, 1.80, 1.84,
+       1.87, 1.89, 2.03, 2.03, 2.05, 2.12, 2.35, 2.41, 2.43, 2.48, 2.50,
+       2.53, 2.55, 2.55, 2.56, 2.59, 2.67, 2.73, 2.74, 2.79, 2.81, 2.82,
+       2.85, 2.87, 2.88, 2.93, 2.95, 2.96, 2.97, 3.09, 3.11, 3.11, 3.15,
+       3.15, 3.19, 3.22, 3.22, 3.27, 3.28, 3.31, 3.31, 3.33, 3.39, 3.39,
+       3.56, 3.60, 3.65, 3.68, 3.70, 3.75, 4.20, 4.38, 4.42, 4.70, 4.90)
+
+
+N<- length(x)
+library(rstan)
+fit<- stan(model_code = model2, iter = 10000, seed=1, chains = 4, cores = 4,
+           data = list(N=N, x=x), control = list(adapt_delta = 0.99, max_treedepth =15))
+print(fit)
+library(bayesplot)
+color_scheme_set("purple") 
+
+
+# Generate posterior predictive samples
+parms<-rstan::extract(fit)
+ppc_dens_overlay(x, parms$xrep[1:200,])
+pairs(fit, pars=c("rho","omega"))
+mcmc_trace(fit, pars=c("rho","omega"))
+mcmc_acf(fit, pars=c("rho","omega"))
+
+#### P-value of Mean and Varaince of PPC###
+# just using example objects that come with bayesplot
+y <-x
+yrep <- parms$xrep
+
+# ppc pvalue plot###
+plot1 <- ppc_stat(y, yrep, stat = "mean")
+plot2 <- ppc_stat(y, yrep, stat = "var")
+
+# calculate proportion of stat(yrep) > stat(y)
+library(ggplot2)
+p_value_mean <- mean(apply(yrep, 1, mean) > mean(y))
+p_val_variance <- mean(apply(yrep, 1, var) > var(y))
+
+plot3<-plot1 + 
+  yaxis_text() +    # helps see y-axis labels while positioning
+  annotate("text", x = 3, y = 100, label = paste("p =", round(p_value_mean, 4)))
+
+plot4<-plot2 + 
+  yaxis_text() +    # helps see y-axis labels while positioning
+  annotate("text", x = 1.2, y = 100, label = paste("p =", round(p_val_variance, 4)))
+
+##Sensitivity analysis##
+##install.packages("priorsense")
+
+library(priorsense)
+fit1<- stan(model_code = model1, iter = 10000, seed=1, chains = 3, cores = 4,
+           data = list(N=N, x=x), control = list(adapt_delta = 0.99, max_treedepth =15))
+
+powerscale_plot_dens(fit1)
+powerscale_plot_ecdf(fit1)
+
+
+
