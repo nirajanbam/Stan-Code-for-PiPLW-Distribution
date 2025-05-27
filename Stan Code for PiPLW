@@ -1,4 +1,4 @@
-##Stan Code for PIPLW###
+##Stan Code for PiPLW###
 ###Model 1 is for sensitivty analysis##
 model1<-"functions {
   real my_quantile_rng(real rho, real omega) {
