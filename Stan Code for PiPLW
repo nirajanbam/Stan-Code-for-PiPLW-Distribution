@@ -270,9 +270,190 @@ plot4<-plot2 +
   yaxis_text() +    # helps see y-axis labels while positioning
   annotate("text", x = 1.2, y = 100, label = paste("p =", round(p_val_variance, 4)))
 
+########################
 ###Sensitivity Analysis##
+########################
 fit1<- stan(model_code = model1, iter = 10000, seed=1, chains = 3, cores = 4,
            data = list(N=N, x=x), control = list(adapt_delta = 0.99, max_treedepth =15))
 
 powerscale_plot_dens(fit1)
 powerscale_plot_ecdf(fit1)
+
+##########################
+##########################
+####Data Set II###########
+##########################
+##########################
+
+
+X<-c(1.339, 1.434, 1.549, 1.574, 1.589, 1.613, 1.746, 1.753, 1.764, 
+1.807, 1.812, 1.84, 1.852, 1.852, 1.862, 1.864,1.931, 1.952, 1.974, 2.019, 
+2.051, 2.055, 2.058, 2.088, 2.125, 2.162, 2.171, 2.172, 2.18, 2.194, 2.211, 
+2.27, 2.272,2.28, 2.299, 2.308, 2.335, 2.349, 2.356, 2.386, 2.39, 2.41, 2.43, 
+2.431, 2.458, 2.471, 2.497, 2.514, 2.558, 2.577,  2.593, 2.601, 2.604, 2.62, 
+2.633, 2.67, 2.682, 2.699, 2.705, 2.735, 2.785, 3.02, 3.042, 3.116, 3.174)
+
+
+N<- length(x)
+
+library("rstan")
+library(bayesplot)
+library(coda)
+library(shinystan)
+library(ggplot2)
+library(dlm)
+library(priorsense)
+
+fit<- stan(model_code = model, iter = 10000, seed=1, chains = 4, cores = 4,
+           data = list(N=N, x=x), control = list(adapt_delta = 0.99, max_treedepth =15))
+
+
+#$$$$$$$$$$$$$$$$ Table creation of output *******
+
+tab<- summary(fit, pars= c("rho", "omega", "lp__"), chain=0, 
+              probs = c(0.5, 0.025, 0.975), digits = 4)$summary
+tab<- round(tab, 4)
+tab<- as.data.frame(tab, keep.rownames= c("rho", "omega", "log Likelihood"))
+tab
+write.csv(tab, file = "summary_stat.csv",
+          row.names = TRUE, col.names = TRUE)
+
+### Using coda package ###########
+rho<- extract(fit, pars="rho")[[1]]
+rho<- as.data.frame(rho)
+rho<- as.mcmc(rho)
+HPDinterval(rho, 0.95)
+
+omega<- extract(fit, pars="omega")[[1]]
+omega<- as.data.frame(omega)
+omega<- as.mcmc(omega)
+HPDinterval(omega, 0.95)
+
+lp<- extract(fit, pars="lp__")[[1]]
+lp<- as.data.frame(lp)
+lp<- as.mcmc(lp)
+HPDinterval(lp, 0.95)
+
+launch_shinystan(fit)
+
+windows(8, 2.5)
+trace<- stan_trace(fit, pars = c("rho", "omega"), alpha=1)
+trace1<- trace + scale_color_manual(values = c( "blue", "green", "purple","black"))
+
+trace + scale_color_brewer(type = "div") + theme(legend.position = "top")
+
+facet_style<- theme(strip.background = ggplot2::element_rect(fill = "gold"), 
+                    strip.text = ggplot2::element_text(size = 8, color = "black"))
+
+(trace<- trace1 + facet_style) # very good for report
+
+
+# ergodic mean plot
+rho<- extract(fit, 'rho')[[1]]
+em <- ergMean(as.numeric(rho), m = 1)
+rhoMean<- mcmcMean(as.numeric(rho), sd= FALSE)
+windows(5,5)
+par(mar = c(4.5, 3.0, 1.5, 1.5))
+plot(ts(em, start= 1), xlab="Iteration", ylab="", lwd=2, main="rho")
+abline(h= rhoMean, lty=2, lwd=2, col="red")
+#ggsave("rho_ergodic.pdf", width = 5, height = 5)
+
+#omega
+omega<- extract(fit, 'omega')[[1]]
+em <- ergMean(as.numeric(omega), m = 1)
+omegaMean<- mcmcMean(as.numeric(omega), sd= FALSE)
+windows(5, 5)
+par(mar = c(4.5, 3.0, 1.5, 1.5))
+plot(ts(em, start= 1), xlab="Iteration", ylab="", lwd=2, main="omega")
+abline(h= omegaMean, lty=2, lwd=2, col="red")
+
+
+#visual summary HISTOGRAM WITH RUG  %%%%%
+library(dplyr)
+rho<- extract(fit, 'rho')[[1]]
+rho<- as.data.frame(rho)
+windows(5,5)
+rho %>% ggplot(aes(rho))+
+  geom_histogram( aes(y=..density..), binwidth = 0.02, fill= "royalblue", col="black")+
+  ylab("")+
+  xlab(expression(rho))+
+  geom_density(col= "firebrick", alpha= 0.1, lwd=1)+
+  geom_rug(col="cyan")
+
+##### Hist of bata with Rug
+omega<- extract(fit, 'omega')[[1]]
+omega<- as.data.frame(omega)
+windows(5,5)
+omega %>% ggplot(aes(omega))+
+  geom_histogram( aes(y=..density..), binwidth = 0.1, fill= "royalblue", col="black")+
+  ylab("")+
+  xlab(expression(omega))+
+  geom_density(col= "firebrick", alpha= 0.07, lwd=1)+
+  geom_rug(col="cyan")
+#ggsave("omega_hist_plot.pdf", width = 5, height = 5)
+
+###  Auto-correlation plot###
+color_scheme_set("brewer-Spectral")
+windows(6,4)
+(p <- mcmc_acf_bar(fit, pars = c("rho", "omega"), alpha=2))
+
+# add horiztonal dashed line at 0.5
+p + hline_at(0.5, linetype = 2, size = 0.15, alpha=2, color = "red")
+#ggsave("auto_corr_plot.pdf", width = 5, height = 5)
+
+
+color_scheme_set("viridisC")
+windows(6,5)
+parms<-rstan::extract(fit)
+y<-parms$xrep
+ppc_boxplot(x,y[c(10, 50, 100), ],  size = 0.50, alpha = 2.5)
+
+
+color_scheme_set("viridisC")
+windows(5,5)
+ppc_ecdf_overlay(x, y[1:200, ])
+
+
+color_scheme_set("brewer-Spectral")
+windows(5,5)
+ppc_dens_overlay(x, y[1300:1400,], alpha = 1.75)
+
+
+### Error Histogram%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+color_scheme_set("viridisC")
+windows(6,4)
+ppc_error_hist(x, y[c(5000, 10000, 15000, 20000), ], binwidth = 0.7, alpha = 2)
+
+#### P-value of Mean and Variance of PPC###
+# just using example objects that come with bayesplot
+y <-x
+yrep <- parms$xrep
+
+# ppc pvalue plot###
+plot1 <- ppc_stat(y, yrep, stat = "mean")
+plot2 <- ppc_stat(y, yrep, stat = "var")
+
+# calculate proportion of stat(yrep) > stat(y)
+library(ggplot2)
+p_value_mean <- mean(apply(yrep, 1, mean) > mean(y))
+p_val_variance <- mean(apply(yrep, 1, var) > var(y))
+
+plot3<-plot1 + 
+  yaxis_text() +    # helps see y-axis labels while positioning
+  annotate("text", x = 3, y = 100, label = paste("p =", round(p_value_mean, 4)))
+
+plot4<-plot2 + 
+  yaxis_text() +    # helps see y-axis labels while positioning
+  annotate("text", x = 1.8, y = 100, label = paste("p =", round(p_val_variance, 4)))
+
+###Sensitivity Analysis##
+fit1<- stan(model_code = model1, iter = 10000, seed=1, chains = 3, cores = 4,
+            data = list(N=N, x=x), control = list(adapt_delta = 0.99, max_treedepth =15))
+
+powerscale_plot_dens(fit1)
+powerscale_plot_ecdf(fit1)
+
+
+
+
