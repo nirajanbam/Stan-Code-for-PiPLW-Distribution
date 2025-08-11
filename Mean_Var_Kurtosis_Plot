@@ -1,0 +1,147 @@
+
+library(ggplot2)
+library(dplyr)
+library(plotly)
+# Fixed value of pi
+pi_val <- 22 / 7
+
+# Valid parameter combinations (positive variance only)
+#param_grid <- expand.grid(rho = c(0.5, 1, 2), omega = c(0.5))
+param_grid <- expand.grid(rho = c(0.5, 1, 2, 2.5, 3), omega = c(0.5, 0.6, 0.7, 0.75, 0.8, 0.9))
+
+
+# Function to compute Delta_ijk
+delta_ijk <- function(i, j, k) {
+  if (i + j - 1 < j || j < k) return(0)
+  ((-1)^(j + k)) / (pi_val - 1) *
+    ((i + k) * (log(pi_val))^i / factorial(i)) *
+    choose(i + j - 1, j) * choose(j, k)
+}
+
+# Delta star
+delta_star <- function(i, j, k, l, rho, omega) {
+  delta <- delta_ijk(i, j, k)
+  if (i + k - 1 < l) return(0)
+  rho * omega * (-1)^l * delta * choose(i + k - 1, l)
+}
+
+# Compute r-th moment
+compute_moment <- function(r, rho, omega, max_terms = 5) {
+  total <- 0
+  for (i in 0:max_terms) {
+    for (j in 0:max_terms) {
+      for (k in 0:max_terms) {
+        for (l in 0:max_terms) {
+          delta_val <- delta_star(i, j, k, l, rho, omega)
+          denom <- ((l + 1) * rho)^(r / omega + 1)
+          gamma_term <- gamma(r / omega + 1)
+          term <- delta_val * (1 / omega) * gamma_term / denom
+          total <- total + term
+        }
+      }
+    }
+  }
+  return(total)
+}
+
+# Collect results
+results <- data.frame()
+
+for (i in 1:nrow(param_grid)) {
+  rho <- param_grid$rho[i]
+  omega <- param_grid$omega[i]
+  
+  mean_val <- compute_moment(1, rho, omega)
+  m2 <- compute_moment(2, rho, omega)
+  m3 <- compute_moment(3, rho, omega)
+  m4 <- compute_moment(4, rho, omega)
+  
+  variance <- m2 - mean_val^2
+  skew <- (m3 - 3 * mean_val * variance - mean_val^3) / (variance^(3/2))
+  kurt <- (m4 - 4 * mean_val * m3 + 6 * mean_val^2 * m2 - 3 * mean_val^4) / (variance^2)
+  
+  results <- rbind(results, data.frame(
+    rho = rho, omega = omega,
+    mean = mean_val, variance = variance,
+    skewness = skew, kurtosis = kurt
+  ))
+}
+
+# Save CSV
+write.csv(results, "PiPLW_valid_results.csv", row.names = FALSE)
+
+
+
+library(plotly)
+
+# Reshape data into a matrix for surface plotting
+skew_matrix <- matrix(results$skewness, nrow = length(unique(results$rho)), byrow = TRUE)
+kurt_matrix <- matrix(results$kurtosis, nrow = length(unique(results$rho)), byrow = TRUE)
+
+# Create 3D surface plot for skewness
+fig_skew <- plot_ly(
+  x = unique(results$rho),
+  y = unique(results$omega),
+  z = skew_matrix,
+  type = "surface"
+) %>%
+  layout(
+    scene = list(
+      xaxis = list(title = "Rho"),
+      yaxis = list(title = "Omega"),
+      zaxis = list(title = "Skewness")
+    ),
+    title = ""
+  )
+
+# Create 3D surface plot for kurtosis
+fig_kurt <- plot_ly(
+  x = unique(results$rho),
+  y = unique(results$omega),
+  z = kurt_matrix,
+  type = "surface"
+) %>%
+  layout(
+    scene = list(
+      xaxis = list(title = "Rho"),
+      yaxis = list(title = "Omega"),
+      zaxis = list(title = "Kurtosis")
+    ),
+    title = ""
+  )
+
+
+
+fig_skew <- fig_skew %>%
+  layout(
+    scene = list(
+      xaxis = list(title = "Rho"),
+      yaxis = list(title = "Omega"),
+      zaxis = list(title = "Skewness")
+    ),
+    title = "3D Surface Plot of Skewness",
+    legend = list(
+      font = list(size = 10),  # Smaller font size
+      x = 0.5,  # Moves the legend closer to the plot
+      y = 0.9  # Adjusts the vertical position
+    )
+  )
+
+fig_kurt <- fig_kurt %>%
+  layout(
+    scene = list(
+      xaxis = list(title = "Rho"),
+      yaxis = list(title = "Omega"),
+      zaxis = list(title = "Kurtosis")
+    ),
+    title = "3D Surface Plot of Kurtosis",
+    legend = list(
+      font = list(size = 10),  # Smaller font size
+      x = 1,  # Moves the legend closer to the plot
+      y = 0.9  # Adjusts the vertical position
+    )
+  )
+
+windows(5,5)
+fig_skew  # To display the skewness plot
+fig_kurt  # To display the kurtosis plot
