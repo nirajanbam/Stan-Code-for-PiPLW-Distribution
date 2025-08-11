@@ -1,0 +1,121 @@
+## simulation code for PiPLW distribution
+rm(list = ls())
+library(maxLik)
+
+rPiPLW <- function(n, alpha, beta) {
+  if((!is.numeric(alpha)) || (!is.numeric(beta)) || (!is.numeric(n)))
+    stop("non-numeric argument to mathematical function")
+  if((min(alpha) < 0) || (min(beta) < 0) || (n <= 0))
+    stop("Invalid arguments")
+  u <- runif(n, 0, 1)
+  k <- log(1+u*(pi-1))/log(pi)
+  t <- (1-k)/(1+k)		
+  qtl <- (-(1/alpha)*log(t)) ^ (1/beta)  # Quantile Function  
+  return(qtl) 
+}
+
+sample_sizes <- seq(150, 400, by = 50)
+k <- 1000  # No. of sample to be generated
+alpha <- 3.5  # initial value of parameter
+beta <- 2.5
+output <- data.frame()
+for (n in sample_sizes) {
+  Mat <- matrix(0, nrow = k, ncol = 5, byrow = TRUE)
+  colnames(Mat) <- c("sample_size", "alpha", "beta", "logL", "replication")
+  
+  for (i in 1:k) {
+    x <- rPiPLW(n, alpha, beta)
+    logLike <- function(q) {
+      if(q[1] <= 0 || q[2] <= 0){
+        return(-Inf)
+      }
+      z <- exp(-q[1]*(x^q[2]))      
+      LogL <- sum(log(2)+log(log(pi))-log(pi-1)+log(q[2])+log(q[1])+log(z)+
+                    (q[2]-1)*log(x)-2*log(1+z)+((1-z)/(1+z))*log(pi))
+      return(LogL)
+    }
+    
+    out <- maxLik(logLike, start = c(alpha = alpha, beta = beta), method = 'BFGS')
+    Mat[i, 1] <- n
+    Mat[i, 2] <- out$estimate[1]
+    Mat[i, 3] <- out$estimate[2]
+    Mat[i, 4] <- out$maximum
+    Mat[i, 5] <- i
+  }
+  
+  # Calculate bias and MSE
+  bias_alpha <- mean(Mat[, 2]) - alpha
+  bias_beta <- mean(Mat[, 3]) - beta
+  mse_alpha <- mean((Mat[, 2] - alpha)^2)
+  mse_beta <- mean((Mat[, 3] - beta)^2)
+  
+  # Add the output to the data frame
+  temp_output <- data.frame(
+    sample_size = n,
+    bias_alpha = bias_alpha,
+    bias_beta = bias_beta,
+    mse_alpha = mse_alpha,
+    mse_beta = mse_beta
+  )
+  output <- rbind(output, temp_output)
+}
+
+output
+
+# Save the output in a CSV file
+write.csv(round(output, 4), "simulation_Result_PiPLW_set8.csv", row.names = FALSE)
+
+
+##=====================================================
+# plot MSE with 95% CI
+
+library(ggplot2)
+
+# Read the output CSV file
+output1 <- read.csv("simulation_Result_PiPLW_set1.csv")
+
+# Plot the MSEs of alpha and delta with 95% CI bands
+windows(5,3)
+ggplot(output1, aes(x = sample_size)) +
+  geom_line(aes(y = mse_alpha, color = "alpha"), size = 0.75) +
+  geom_ribbon(aes(ymin = mse_alpha - 1.96 * sqrt(mse_alpha),
+                  ymax = mse_alpha + 1.96 * sqrt(mse_alpha),
+                  fill = "alpha"), alpha = 0.2) +
+  geom_line(aes(y = mse_delta, color = "delta"), size = 0.75) +
+  geom_ribbon(aes(ymin = mse_delta - 1.96 * sqrt(mse_delta),
+                  ymax = mse_delta + 1.96 * sqrt(mse_delta),
+                  fill = "delta"), alpha = 0.2) +
+  labs(x = "Sample size",
+       y = "Mean Squared Error",
+       color = "Parameter",
+       fill = "Parameter") +
+  scale_color_manual(values = c("alpha" = "blue", "delta" = "red")) +
+  scale_fill_manual(values = c("alpha" = "blue", "delta" = "red")) +
+  theme_bw()
+
+# alpha only
+# Plot the MSE of alpha with 95% CI band
+windows(5,3)
+ggplot(output, aes(x = sample_size)) +
+  geom_line(aes(y = mse_alpha), size = 0.5) +
+  geom_ribbon(aes(ymin = mse_alpha - 1.96 * sqrt(mse_alpha),
+                  ymax = mse_alpha + 1.96 * sqrt(mse_alpha)), alpha = 0.2) +
+  labs(x = "Sample size",
+       y = "MSE of alpha") +
+  theme_bw()
+
+# for delta
+# Plot the MSE of delta with 95% CI band
+windows(5,3)
+ggplot(output1, aes(x = sample_size)) +
+  geom_line(aes(y = mse_delta), size = 0.5) +
+  geom_ribbon(aes(ymin = mse_delta - 1.96 * sqrt(mse_delta), 
+                  ymax = mse_delta + 1.96 * sqrt(mse_delta)), alpha = 0.2) +
+  labs(x = "Sample size",
+       y = "MSE of alpha") +
+  theme_bw()
+
+
+
+
+            
