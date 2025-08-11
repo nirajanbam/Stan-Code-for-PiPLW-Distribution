@@ -1,0 +1,509 @@
+# PiPEOW distribution model comparison for
+# first Data set 
+rm(list = ls())
+library(goftest)
+library(maxLik)
+## **************************Good to Report****************************
+#The Weibull-Exponential Distribution: Its Properties and Applications
+#Journal of Applied Sciences 15 (11): 1305-1311, 2015
+#Data, set, I:, The, first, data, is, on, the, breaking, stress, of, carbon
+#fibres, of, 50, mm, length, (GPa)., The, data, has, been, previously
+#used, by, Nichols, and, Padgett, (2006), Cordeiro, and, Lemonte
+#(2011), and, Al-Aqtash, et, al., (2014)., The, data, is, as, follows:
+x <- c(0.39, 0.85, 1.08, 1.25, 1.47, 1.57, 1.61, 1.61, 1.69, 1.80, 1.84,
+       1.87, 1.89, 2.03, 2.03, 2.05, 2.12, 2.35, 2.41, 2.43, 2.48, 2.50,
+       2.53, 2.55, 2.55, 2.56, 2.59, 2.67, 2.73, 2.74, 2.79, 2.81, 2.82,
+       2.85, 2.87, 2.88, 2.93, 2.95, 2.96, 2.97, 3.09, 3.11, 3.11, 3.15,
+       3.15, 3.19, 3.22, 3.22, 3.27, 3.28, 3.31, 3.31, 3.33, 3.39, 3.39,
+       3.56, 3.60, 3.65, 3.68, 3.70, 3.75, 4.20, 4.38, 4.42, 4.70, 4.90)
+## logL=-85.88334
+n<- length(x)
+
+#### log likelihood function "PiPLW distribution"
+ll.PiPLW <- function(para) {
+  alpha <- para[1]
+  beta <- para[2]
+  if (alpha <= 0 || beta <= 0 )
+  {
+    return (-Inf)
+  }		
+  z <- exp(-alpha*(x^beta))		
+  LogL <- sum(log(2)+log(log(pi))-log(pi-1)+log(beta)+log(alpha)+log(z)+(beta-1)*log(x)-2*log(1+z)+((1-z)/(1+z))*log(pi))
+  return(LogL)
+}
+
+k<-maxLik(ll.PiPLW, start=c(0.5, 0.5), method="BFGS")
+s_e<- sqrt(abs(diag(solve(-k$hessian))))
+k<- k$estimate
+k
+p<- length(k) # no of parameters
+alpha <- k[1]
+beta <- k[2]
+like<- ll.PiPLW(k)
+LL<- -2*like
+AIC<- LL + 2*p
+HQIC <- LL + 2 * p * log(log(n))
+est_par1<- cbind(k[1], s_e[1], k[2], s_e[2])
+#============ CDF function ====PiPLW====
+cdf<- function (x){
+  u <- exp(-alpha*(x^beta))
+  z <- (1-u)/(1+u)
+  cdf <- (pi^z -1)/(pi-1)
+} 
+PiPLW_ks<- ks.test(x, cdf)
+PiPLW_cvm<- cvm.test(x, cdf)
+PiPLW_ad<- ad.test(x, cdf)
+PiPLW_all<- cbind(LL, AIC, HQIC, PiPLW_ks$statistic, PiPLW_ks$p.value,
+                PiPLW_cvm$statistic, PiPLW_cvm$p.value, 
+                PiPLW_ad$statistic, PiPLW_ad$p.value)
+PiPLW_all
+
+#==============Loglikelihood of KM-Tranaformation Inverse Weibull
+#### log likelihood function "KMIW"
+ll.KMIW <- function(para){
+  alpha <- para[1]
+  beta <- para[2]
+  v<- (x/beta)^(-alpha)
+  u<- exp(-v)
+  logL <- sum(log(exp(1))-log(exp(1)-1)+ log(alpha)+alpha*log(beta)-(alpha+1)*log(x)-v
+              -u)
+  return(logL)
+}
+k<-maxLik(ll.KMIW, start=c(0.25, 0.75), method="BFGS")
+s_e<- sqrt(abs(diag(solve(-k$hessian))))
+k<- k$estimate
+k
+p<- length(k) # no of parameters
+alpha <- k[1]
+beta <- k[2]
+like<- ll.KMIW(k)
+LL<- -2*like
+AIC<- LL + 2*p
+HQIC <- LL + 2 * p * log(log(n))
+est_par2<- cbind(k[1], s_e[1], k[2], s_e[2], k[3], s_e[3])
+#============ CDF function ==KMIW======
+cdf<- function (x){
+  u<- exp(-(x/beta)^alpha)
+  v<- exp(-u)
+  cdf <- (exp(1)/(exp(1)-1))*(1-v)
+} 
+KMIW_ks<- ks.test(x, cdf)
+KMIW_cvm<- cvm.test(x, cdf)
+KMIW_ad<- ad.test(x, cdf)
+KMIW_all<- cbind(LL, AIC, HQIC, KMIW_ks$statistic, KMIW_ks$p.value,
+                 KMIW_cvm$statistic, KMIW_cvm$p.value, 
+                 KMIW_ad$statistic, KMIW_ad$p.value)
+KMIW_all
+
+
+
+#==============Loglikelihood of Lindley Weibull (LW)
+#### log likelihood function "LW"
+ll.LW <- function(para){
+  alpha <- para[1]
+  beta <- para[2]
+  theta <- para[3]
+  v<- x^(beta-1)/alpha^(-beta)
+  u<- x^(2*beta-1)/alpha^(-2*beta)
+  logL <- sum(log(beta)+2*log(theta)-log(theta+1)+log(v+u)-theta*(alpha*x)^beta)
+  return(logL)
+}
+k<-maxLik(ll.LW, start=c(0.25, 0.5, 0.75), method="BFGS")
+s_e<- sqrt(abs(diag(solve(-k$hessian))))
+k<- k$estimate
+k
+p<- length(k) # no of parameters
+alpha <- k[1]
+beta <- k[2]
+theta <- k[3]
+like<- ll.LW(k)
+LL<- -2*like
+AIC<- LL + 2*p
+HQIC <- LL + 2 * p * log(log(n))
+est_par3<- cbind(k[1], s_e[1], k[2], s_e[2], k[3], s_e[3])
+#============ CDF function ==LW======
+cdf<- function (x){
+  u<- theta*(alpha*x)^beta
+  cdf <- 1-(exp(-u))*(1+u/(theta+1))
+} 
+LW_ks<- ks.test(x, cdf)
+LW_cvm<- cvm.test(x, cdf)
+LW_ad<- ad.test(x, cdf)
+LW_all<- cbind(LL, AIC, HQIC, LW_ks$statistic, LW_ks$p.value,
+               LW_cvm$statistic, LW_cvm$p.value, 
+               LW_ad$statistic, LW_ad$p.value)
+LW_all
+
+
+
+#### log likelihood function "alpha power exponential" APE
+ll.APE <- function(para) {
+  alpha <- para[1]
+  lambda <- para[2]
+  if ( alpha<= 0 || lambda <= 0)
+  {
+    return (-Inf)
+  }
+  logL <- sum(log(lambda*log(alpha)/(alpha-1))-lambda*x+(1-exp(-lambda*x))*
+                log(alpha))
+  return(logL)
+}
+
+k<-maxLik(ll.APE, start=c(0.5, 0.5), method="BFGS")
+s_e<- sqrt(abs(diag(solve(-k$hessian))))
+k<- k$estimate
+k
+p<- length(k) # no of parameters
+alpha<- k[1]
+lambda<- k[2]
+like<- ll.APE(k)
+LL<- -2*like
+AIC<- LL + 2*p
+HQIC <- LL + 2 * p * log(log(n))
+est_par4<- cbind(k[1], s_e[1], k[2], s_e[2])
+#============ CDF function ==APE======
+cdf<- function (x){
+  u <- exp(-lambda*x)
+  cdf<- (alpha^(1-u)-1)/(alpha-1)
+} 
+APE_ks<- ks.test(x, cdf)
+APE_cvm<- cvm.test(x, cdf)
+APE_ad<- ad.test(x, cdf)
+APE_all<- cbind(LL, AIC, HQIC, APE_ks$statistic, APE_ks$p.value,
+                  APE_cvm$statistic, APE_cvm$p.value, 
+                  APE_ad$statistic, APE_ad$p.value)
+APE_all
+
+#### log likelihood function "Inverse Weibull"
+ll.IWeib <- function(para) {
+  delta <- para[1]
+  theta <- para[2]
+  if ( delta<= 0 || theta <= 0)
+  {
+    return (-Inf)
+  }
+  logL <- sum(log(delta*theta)-(delta+1)*log(x)-
+                theta*x^(-delta))
+  return(logL)
+}
+
+
+k<-maxLik(ll.IWeib, start=c(0.5, 0.5), method="BFGS")
+s_e<- sqrt(abs(diag(solve(-k$hessian))))
+k<- k$estimate
+k
+p<- length(k) # no of parameters
+delta<- k[1]
+theta<- k[2]
+like<- ll.IWeib(k)
+LL<- -2*like
+AIC<- LL + 2*p
+HQIC <- LL + 2 * p * log(log(n))
+est_par5<- cbind(k[1], s_e[1], k[2], s_e[2])
+#============ CDF function ==IW======
+cdf<- function (x){
+  cdf <- exp(-theta*x^(-delta))  
+} 
+IWeib_ks<- ks.test(x, cdf)
+IWeib_cvm<- cvm.test(x, cdf)
+IWeib_ad<- ad.test(x, cdf)
+IWeib_all<- cbind(LL, AIC, HQIC, IWeib_ks$statistic, IWeib_ks$p.value,
+                IWeib_cvm$statistic, IWeib_cvm$p.value, 
+                IWeib_ad$statistic, IWeib_ad$p.value)
+IWeib_all
+
+#### log likelihood function "Weibull"
+ll.Weibull<- function(para) {
+  alpha <- para[1]
+  lambda <- para[2]
+  logL <- sum(log(alpha*lambda)+(lambda-1)*log(x)- alpha*x^lambda)
+  return(logL)
+}
+k<-maxLik(ll.Weibull, start=c(0.5, 0.25), method="BFGS")
+s_e<- sqrt(abs(diag(solve(-k$hessian))))
+k<- k$estimate
+k
+p<- length(k) # no of parameters
+alpha<- k[1]
+lambda <- k[2]
+like<- ll.Weibull(k)
+LL<- -2*like
+AIC<- LL + 2*p
+HQIC <- LL + 2 * p * log(log(n))
+est_par6<- cbind(k[1], s_e[1], k[2], s_e[2])
+#============ CDF function == Weibull======
+cdf<- function (x){
+  cdf <- 1- exp(-alpha*x^lambda)  
+} 
+Weibull_ks<- ks.test(x, cdf)
+Weibull_cvm<- cvm.test(x, cdf)
+Weibull_ad<- ad.test(x, cdf)
+Weibull_all<- cbind(LL, AIC, HQIC, Weibull_ks$statistic, Weibull_ks$p.value,
+                Weibull_cvm$statistic, Weibull_cvm$p.value, 
+                Weibull_ad$statistic, Weibull_ad$p.value)
+Weibull_all
+
+#### log likelihood function "APIP"
+ll.APIP <- function(para) {
+  alpha <- para[1]
+  beta <- para[2]
+  z<- exp(x^(-beta))
+  logL <- sum(log(beta)+log(log(alpha))- log(alpha-1)+(beta-1)*log(x)
+              +log(alpha)*(x/(x+1))^beta -(beta+1)*log(1+x))
+  return(logL)
+}
+k<-maxLik(ll.APIP, start=c(11.0, 2.5), method="BFGS")
+s_e<- sqrt(abs(diag(solve(-k$hessian))))
+k<- k$estimate
+k
+p<- length(k) # no of parameters
+alpha<- k[1]
+beta<- k[2]
+like<- ll.APIP(k)
+LL<- -2*like
+AIC<- LL + 2*p
+HQIC <- LL + 2 * p * log(log(n))
+est_par7<- cbind(k[1], s_e[1], k[2], s_e[2])
+#============ CDF function ="APIP"==
+cdf<- function (x){
+  z<- (x/(1+x))^beta
+  cdf <- (alpha^z - 1)/(alpha-1) 
+} 
+APIP_ks<- ks.test(x, cdf)
+APIP_cvm<- cvm.test(x, cdf)
+APIP_ad<- ad.test(x, cdf)
+APIP_all<- cbind(LL, AIC, HQIC, APIP_ks$statistic, APIP_ks$p.value,
+                APIP_cvm$statistic, APIP_cvm$p.value, 
+                APIP_ad$statistic, APIP_ad$p.value)
+APIP_all
+
+#### log likelihood function "APWQ"
+ll.APWQ <- function(para) {
+  alpha <- para[1]
+  beta <- para[2]
+  lambda <- para[3]
+  u<- lambda*x^beta
+  logL <- sum(log(beta*lambda)+(log(alpha-1))- log(log(alpha))-u
+              +(beta-1)*log(x)-log(1+(alpha-1)*(1-exp(-u))))
+  return(logL)
+}
+
+k<-maxLik(ll.APWQ, start=c(5.25, 0.5, 0.75), method="BFGS")
+s_e<- sqrt(abs(diag(solve(-k$hessian))))
+k<- k$estimate
+k
+p<- length(k) # no of parameters
+alpha <- k[1]
+beta <- k[2]
+lambda <- k[3]
+like<- ll.APWQ(k)
+LL<- -2*like
+AIC<- LL + 2*p
+HQIC <- LL + 2 * p * log(log(n))
+est_par8<- cbind(k[1], s_e[1], k[2], s_e[2], k[3], s_e[3])
+#============ CDF function === APWQ =====
+cdf<- function(x){
+  u<- 1-exp(-lambda*x^beta)
+  cdf <- log(1+(alpha-1)*u)/log(alpha)  
+} 
+APWQ_ks<- ks.test(x, cdf)
+APWQ_cvm<- cvm.test(x, cdf)
+APWQ_ad<- ad.test(x, cdf)
+APWQ_all<- cbind(LL, AIC, HQIC, APWQ_ks$statistic, APWQ_ks$p.value,
+                  APWQ_cvm$statistic, APWQ_cvm$p.value, 
+                  APWQ_ad$statistic, APWQ_ad$p.value)
+APWQ_all 
+
+
+
+
+#%%%%%%%%%%%% Data and table Creation %%%%%%%%%%%%%%%
+library(dplyr)
+
+est_par_se<- bind_rows(as.data.frame(est_par1), as.data.frame(est_par2),
+                       as.data.frame(est_par3), as.data.frame(est_par4),
+                       as.data.frame(est_par5), as.data.frame(est_par6),
+                       as.data.frame(est_par7), as.data.frame(est_par8))
+rownames(est_par_se)<- c("PiPLW","KMIW", "LW", "APE",
+                          "IW","Weibull", "APIP", "APWQ")
+colnames(est_par_se)<- c("parameter", "SE","parameter", "SE",
+                         "parameter", "SE")
+est_par_se<- round(est_par_se, 4)
+print(est_par_se)
+#write_xlsx(est_par_se, "D:\\Research_World\\My_papers\\new work\\Gpz_Half_Logistic\\par_se.xlsx")
+
+#$$$$$$$$$$$$$$$$$$$$ Table for AIC....%%%%%%%%%%%%%%%%%%%%
+#rbind(PiPLW_all, EGSHL_all, MWE_all, APIP_all, IWeib_all,
+ #     Weib_all, StdAPIP_all, HL_W_all)
+stat.aic<- bind_rows(as.data.frame(PiPLW_all),as.data.frame(KMIW_all),
+                     as.data.frame(LW_all),
+                     as.data.frame(APE_all),
+                     as.data.frame(IWeib_all),
+                     as.data.frame(Weibull_all), as.data.frame(APIP_all),
+                     as.data.frame(APWQ_all))
+rownames(stat.aic)<- c("PiPLW","KMIW", "LW", "APE",
+                        "IW","Weibull", "APIP", "APWQ")
+colnames(stat.aic)<- c("-2logL", "AIC", "HQIC", "KS", "p(KS)",
+                         "CVM", "p(CVM)", "AD", "p(AD)")
+
+
+stat.aic<- round(stat.aic, 4)
+stat.aic
+
+
+
+
+
+write.csv(est_par_se, "MLEs_SE_PiPLW_set1.csv", row.names=T)
+
+write.csv(stat.aic, "AIC_KS_table_PiPLW_set1.csv", row.names=T)
+
+
+
+
+#==================== fitted Histogram PiPLW set 1 =============
+# PDF of PiPLW
+dPiPLW <- function (x, alpha, beta, log = FALSE)
+{
+  if((!is.numeric(alpha)) || (!is.numeric(beta)))
+    stop("non-numeric argument to mathematical function")
+  if((min(alpha) < 0) || (min(beta) < 0))    
+    stop("Invalid arguments")	
+  z <- exp(-alpha*(x^beta))
+  t <- 2*alpha*beta*log(pi)/(pi-1)
+  gx <- x ^ (beta-1)
+  tmp <- (1-z)/(1+z)
+  pdf <- t * gx * z * ((1+z)^-2) * (pi^tmp) 	
+  if (log) 
+    pdf<- log(pdf)	
+  return(pdf)   
+}
+
+## PDF of LW *********************************
+dLW<- function(x, alpha, beta, theta){
+  u<- exp(-theta*(alpha*x)^beta)
+  v<- (alpha^beta) * x^(beta-1)
+  w<- (alpha^(2*beta)) * x^(2*beta-1)
+  pdf<-( beta*theta^2)/(theta+1)*(v+w)*u
+  return(pdf)
+}
+
+## PDF of IWeibull &&&&&&
+
+dIWeib<- function(x, delta, theta){
+  z <- exp(-theta*x^(-delta))
+  pdf<- delta*theta*x^(-delta-1)*z
+  return(pdf)
+}
+
+## PDF of APE
+dAPE<- function(x, alpha, lambda){
+  u<- exp(-lambda*x)
+  pdf<- (log(alpha)/(alpha-1))*lambda*u*alpha^(1-u)
+  return(pdf)
+}
+## PDF of Weibull
+dWeibull<- function(x, alpha, lambda){
+  u<- exp(-alpha*x^lambda)
+  pdf<- alpha*lambda*x^(lambda-1)*u
+  return(pdf)
+}
+
+
+## PDF of APIP
+dAPIP<-function(x, alpha, beta){
+  u<- (x/(1+x))^beta
+  pdf<- (beta*log(alpha)/(alpha-1))*alpha^u*(x^(beta-1))/(1+x)^(beta+1)
+  return(pdf)
+}
+
+
+## PDF of APWQ *********************************
+dAPWQ<- function(x, alpha, beta, lambda){
+  u<- exp(-lambda*x^beta)
+  v<- 1+(alpha-1)*u
+  pdf<- beta*lambda*(alpha-1)*(x)^(beta-1)*u/(log(alpha)*v)
+  return(pdf)
+}
+
+### PDF of KMIWeibull (KMIW)
+dKMIW<- function(x, alpha, beta){
+  v<- (x/beta)^(-alpha)
+  u<- exp(-v)
+  pdf<- (exp(1)/(exp(1)-1))*(alpha/beta)*(x/beta)^(-alpha-1)*u*exp(-u)
+  return(pdf)
+}
+
+
+####Graph of PDF fit data set 1*Pi Power_Logistic Weibull***********************
+lwd<-2
+cols=c("black","red","magenta","orange3", "purple", "springgreen",
+       "royalblue", "pink")
+windows(5,5)
+hist(x, breaks = 10, probability = T, col="lightgray",
+     ylim=c(0, 0.6), ylab="Density", main = "", xlab= "x")
+curve(dPiPLW(x, est_par1[1],	est_par1[3]), add = T, col=cols[1],lwd=lwd)
+curve(dKMIW(x, est_par2[1],	est_par2[3]), add = T, col=cols[2],lwd=lwd)
+curve(dLW(x, est_par3[1],	est_par3[3],	est_par3[5]), add = T, col=cols[3],lwd=lwd)
+curve(dAPE(x, est_par4[1],	est_par4[3]), add=T, col=cols[4], lwd=lwd)
+curve(dIWeib(x, est_par5[1],	est_par5[3]), add=T, col=cols[5], lwd=lwd)
+curve(dWeibull(x, est_par6[1],	est_par6[3]), add=T, col=cols[6], lwd=lwd)
+curve(dAPIP(x, est_par7[1],	est_par7[3]), add=T, col=cols[7],lwd=lwd)
+curve(dAPWQ(x, est_par8[1],	est_par8[3],	est_par8[5]), add=T, col=cols[8],lwd=lwd)
+
+
+
+
+legend(x="topright",inset= c(0.01,0.01), cex = 0.75,
+       legend=c(expression("PiPLW"),expression("KMIW"),
+                expression("LW"), expression("APE"), expression("IW"),
+                expression("Weibull"),expression("APIP"),
+                expression("APWQ")),
+       lwd=lwd, col=cols)
+box()
+
+
+# CDF fit_PiPLW for  data I
+
+ppi.trans.weib <- function(q, alpha, beta, lower.tail = TRUE, log.p = FALSE)
+{
+  if((!is.numeric(alpha)) || (!is.numeric(beta)))
+    stop("non-numeric argument to mathematical function")
+  if((min(alpha) < 0) || (min(beta) < 0))    
+    stop("Invalid arguments") 
+  u <- exp(-alpha*(q^beta))
+  z <- (1-u)/(1+u)
+  cdf <- (pi^z -1)/(pi-1)
+  if(!lower.tail)
+    cdf <- 1.0 - cdf
+  if(log.p)
+    cdf <- log(cdf)
+  return(cdf)
+}
+## Kolmogorov-Smirnov test (One-sample) for deltaPT Weibull distribution 
+ks.pi.trans.weib <- function(x, alpha.est, beta.est,
+                            alternative = c("less", "two.sided", "greater"), plot = FALSE)
+{
+  alpha <- alpha.est 
+  beta <- beta.est 
+  main <- 'Empirical and Theoretical distribution functions'
+  res<-ks.test(x, ppi.trans.weib, alpha, beta, alternative=alternative)
+  if(plot){
+    plot(ecdf(x), verticals = TRUE, do.points = F, main = ' ', 
+         xlab = 'x', ylab = "CDF", las=1, lwd=2, col="blue")
+    mini <- min(x)
+    maxi <- max(x)
+    t <- seq(mini, maxi, by = 0.01)
+    y <- ppi.trans.weib(t, alpha, beta)
+    lines(t, y, lwd = 2, col = "red")
+  }
+  legend(x="bottomright",inset=c(0.05,0.05),
+         legend=c("Empirical","Fitted"),lty=c(1,1),col=c("blue", "red"), lwd=2)
+  return(res)
+}
+windows(5,5)
+ks.pi.trans.weib(x, est_par1[1],	est_par1[3],  alternative="two.sided", plot=TRUE)
+
+##++++++++++++++++++++++++++++ first data set END =========
+
+
